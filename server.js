@@ -130,6 +130,43 @@ app.post("/submit", upload.single("photo"), async (req, res) => {
       attachments
     });
 
+await sgMail.send({
+  to: email,
+  from: FROM_EMAIL,
+
+  
+  subject: "Your Request Received – BB369 Next Step",
+  html: `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;">
+      <h2>Thank you for your request</h2>
+
+      <p>We’ve received your project details and our system is reviewing them.</p>
+
+      <p><strong>Next step:</strong></p>
+
+      <p>
+        We recommend a quick consultation to confirm measurements and provide clear options (A / B / C).
+      </p>
+
+      <p>
+        👉 <a href="https://cal.com/bb369tech/service-decision-review" target="_blank">
+        Book your consultation here
+        </a>
+      </p>
+
+      <p>This helps you get:</p>
+      <ul>
+        <li>Accurate pricing</li>
+        <li>Clear upgrade options</li>
+        <li>Faster decisions</li>
+      </ul>
+
+      <p>We’ll follow up if needed.</p>
+
+      <p>Best regards,<br/>BB369 Team</p>
+    </div>
+  `
+}); 
     return res.status(200).json({
       success: true,
       message: "Submission received successfully."
