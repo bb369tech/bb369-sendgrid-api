@@ -2,8 +2,8 @@ const merchants = {
   "sj-windows-001": {
     name: "SJ Home Upgrade Service",
     email: "sjcustominstall@gmail.com"
-  },
-
+  }
+};
 
 const express = require("express");
 const cors = require("cors");
@@ -20,7 +20,6 @@ const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN;
 
 sgMail.setApiKey(SENDGRID_API_KEY);
 
-// CORS
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -30,18 +29,15 @@ app.use(
   })
 );
 
-// 👉 支持多图
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
 });
 
-// Health check
 app.get("/", (req, res) => {
   res.json({ ok: true });
 });
 
-// 🚀 通用提交接口
 app.post("/submit", upload.array("photos", 5), async (req, res) => {
   try {
     const {
@@ -52,7 +48,8 @@ app.post("/submit", upload.array("photos", 5), async (req, res) => {
       scenario,
       selectedOption,
       page,
-      materialType
+      materialType,
+      merchantId
     } = req.body;
 
     if (!name || !email || !message) {
@@ -62,12 +59,18 @@ app.post("/submit", upload.array("photos", 5), async (req, res) => {
       });
     }
 
+    const merchant = merchants[merchantId];
+    let merchantEmail = TO_EMAIL;
+
+    if (merchant) {
+      merchantEmail = merchant.email;
+    }
+
     const safePage = page || "general";
     const safeOption = selectedOption || "Not selected";
     const safeScenario = scenario || "Not specified";
     const safeMaterial = materialType || "Not specified";
 
-    // 👉 多图处理
     const attachments = [];
 
     if (req.files && req.files.length > 0) {
@@ -81,12 +84,13 @@ app.post("/submit", upload.array("photos", 5), async (req, res) => {
       });
     }
 
-    // 👉 邮件标题自动识别行业
-    const subject = `New ${safePage} Request`;
+    const subject = `New ${safePage} Request - ${merchant ? merchant.name : "Unknown Merchant"}`;
 
     const emailHtml = `
       <div style="font-family: Arial; line-height: 1.6;">
         <h2>New ${safePage} Request</h2>
+
+        <p><strong>Merchant:</strong> ${merchantId || "N/A"}</p>
 
         <p><strong>Name:</strong> ${name}</p>
         <p><strong>Email:</strong> ${email}</p>
@@ -102,15 +106,12 @@ app.post("/submit", upload.array("photos", 5), async (req, res) => {
           </div>
         </div>
 
-        <p style="margin-top:15px;color:#666;">
-          Submitted from BB369 Platform
-        </p>
       </div>
     `;
 
-    // 👉 发给你（商家）
     await sgMail.send({
-      to: TO_EMAIL,
+      to: merchantEmail,
+      bcc: TO_EMAIL,
       from: FROM_EMAIL,
       replyTo: email,
       subject,
@@ -118,7 +119,6 @@ app.post("/submit", upload.array("photos", 5), async (req, res) => {
       attachments
     });
 
-    // 👉 自动回复客户
     await sgMail.send({
       to: email,
       from: FROM_EMAIL,
@@ -126,18 +126,8 @@ app.post("/submit", upload.array("photos", 5), async (req, res) => {
       html: `
         <div style="font-family:Arial;line-height:1.6;">
           <h2>Thank you for your request</h2>
-
           <p>We have received your project details.</p>
-
-          <p>We will review your request and reply within 24 hours.</p>
-
-          <p>
-          👉 <a href="https://cal.com/bb369tech/service-decision-review">
-          Book a quick consultation
-          </a>
-          </p>
-
-          <p>Best regards,<br/>BB369 Team</p>
+          <p>We will reply within 24 hours.</p>
         </div>
       `
     });
