@@ -1,3 +1,10 @@
+const merchants = {
+  "sj-windows-001": {
+    name: "SJ Home Upgrade Service",
+    email: "sjcustominstall@gmail.com"
+  },
+
+
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
