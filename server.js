@@ -1,3 +1,4 @@
+```javascript
 const merchants = {
   "sj-windows-001": {
     name: "SJ Home Upgrade Service",
@@ -17,18 +18,10 @@ const port = process.env.PORT || 10000;
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL;
 const TO_EMAIL = process.env.TO_EMAIL;
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN;
 
 sgMail.setApiKey(SENDGRID_API_KEY);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || origin === ALLOWED_ORIGIN) return callback(null, true);
-      return callback(new Error("Not allowed by CORS"));
-    }
-  })
-);
+app.use(cors());
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -40,7 +33,9 @@ app.get("/", (req, res) => {
 });
 
 app.post("/submit", upload.array("photos", 5), async (req, res) => {
+
   try {
+
     const {
       name,
       email,
@@ -61,6 +56,7 @@ app.post("/submit", upload.array("photos", 5), async (req, res) => {
     }
 
     const merchant = merchants[merchantId];
+
     let merchantEmail = TO_EMAIL;
 
     if (merchant) {
@@ -68,82 +64,239 @@ app.post("/submit", upload.array("photos", 5), async (req, res) => {
     }
 
     const safePage = page || "general";
+
     const safeOption = selectedOption || "Not selected";
+
     const safeScenario = scenario || "Not specified";
+
     const safeMaterial = materialType || "Not specified";
 
-    const attachments = [];
+    const uploadedAttachments = [];
 
     if (req.files && req.files.length > 0) {
+
       req.files.forEach(file => {
-        attachments.push({
+
+        uploadedAttachments.push({
           content: file.buffer.toString("base64"),
           filename: file.originalname,
           type: file.mimetype,
           disposition: "attachment"
         });
+
       });
+
     }
 
-    const subject = `New ${safePage} Request - ${merchant ? merchant.name : "Unknown Merchant"}`;
+    const subject =
+      `New ${safePage} Request - ${
+        merchant ? merchant.name : "Unknown Merchant"
+      }`;
 
     const emailHtml = `
       <div style="font-family: Arial; line-height: 1.6;">
+
         <h2>New ${safePage} Request</h2>
 
         <p><strong>Merchant:</strong> ${merchantId || "N/A"}</p>
 
         <p><strong>Name:</strong> ${name}</p>
+
         <p><strong>Email:</strong> ${email}</p>
+
         <p><strong>Phone:</strong> ${phone || "Not provided"}</p>
+
         <p><strong>Project Type:</strong> ${safeScenario}</p>
+
         <p><strong>Material:</strong> ${safeMaterial}</p>
+
         <p><strong>Selected Option:</strong> ${safeOption}</p>
 
         <div style="margin-top:10px;">
+
           <strong>Details:</strong>
-          <div style="background:#f6f6f6;padding:10px;border-radius:8px;">
+
+          <div style="
+            background:#f6f6f6;
+            padding:10px;
+            border-radius:8px;
+          ">
             ${message}
           </div>
+
         </div>
 
       </div>
     `;
 
+    const createAgreementPdf = () => {
+
+      return new Promise((resolve, reject) => {
+
+        const doc = new PDFDocument();
+
+        const chunks = [];
+
+        doc.on("data", chunk => chunks.push(chunk));
+
+        doc.on("end", () => {
+          resolve(Buffer.concat(chunks));
+        });
+
+        doc.on("error", reject);
+
+        doc.fontSize(20).text(
+          "Windows & Doors Service Agreement",
+          { align: "center" }
+        );
+
+        doc.moveDown();
+
+        doc.fontSize(12).text(
+          `Merchant: ${
+            merchant ? merchant.name : merchantId
+          }`
+        );
+
+        doc.text(`Customer Name: ${name}`);
+
+        doc.text(`Email: ${email}`);
+
+        doc.text(`Phone: ${phone || "Not provided"}`);
+
+        doc.text(`Project Type: ${safeScenario}`);
+
+        doc.text(`Material: ${safeMaterial}`);
+
+        doc.text(`Selected Option: ${safeOption}`);
+
+        doc.moveDown();
+
+        doc.fontSize(14).text("Project Details:");
+
+        doc.fontSize(12).text(message || "N/A");
+
+        doc.moveDown();
+
+        doc.fontSize(14).text("Agreement Terms:");
+
+        doc.fontSize(12).text(
+          "The customer has submitted this request for review."
+        );
+
+        doc.text(
+          "Final pricing, scheduling, and installation arrangements will be confirmed before final execution."
+        );
+
+        doc.text(
+          "Installation services, if applicable, are performed by licensed independent contractors."
+        );
+
+        doc.moveDown();
+
+        doc.text(
+          `Submitted Date: ${
+            new Date().toLocaleString()
+          }`
+        );
+
+        doc.end();
+
+      });
+
+    };
+
+    const pdfBuffer = await createAgreementPdf();
+
     await sgMail.send({
+
       to: merchantEmail,
+
       bcc: TO_EMAIL,
+
       from: FROM_EMAIL,
+
       replyTo: email,
+
       subject,
+
       html: emailHtml,
-      attachments
+
+      attachments: [
+
+        ...uploadedAttachments,
+
+        {
+          content: pdfBuffer.toString("base64"),
+          filename: "windows-doors-agreement.pdf",
+          type: "application/pdf",
+          disposition: "attachment"
+        }
+
+      ]
+
     });
 
     await sgMail.send({
+
       to: email,
+
       from: FROM_EMAIL,
+
       subject: "We Received Your Request",
+
       html: `
-        <div style="font-family:Arial;line-height:1.6;">
-          <h2>Thank you for your request</h2>
-          <p>We have received your project details.</p>
-          <p>We will reply within 24 hours.</p>
+        <div style="
+          font-family:Arial;
+          line-height:1.6;
+        ">
+
+          <h2>
+            Thank you for your request
+          </h2>
+
+          <p>
+            We have received your project details.
+          </p>
+
+          <p>
+            We will reply within 24 hours.
+          </p>
+
         </div>
-      `
+      `,
+
+      attachments: [
+
+        {
+          content: pdfBuffer.toString("base64"),
+          filename: "windows-doors-agreement.pdf",
+          type: "application/pdf",
+          disposition: "attachment"
+        }
+
+      ]
+
     });
 
-    res.json({ success: true });
+    res.json({
+      success: true
+    });
 
   } catch (err) {
+
     console.error(err);
+
     res.status(500).json({
       success: false,
       message: "Server error"
     });
+
   }
+
 });
 
 app.listen(port, () => {
   console.log("Server running");
 });
+```
